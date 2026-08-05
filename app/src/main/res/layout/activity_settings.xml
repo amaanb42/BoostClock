@@ -256,6 +256,29 @@
             </RelativeLayout>
 
             <RelativeLayout
+                android:id="@+id/settings_voice_control_holder"
+                style="@style/SettingsHolderSwitchStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <org.fossify.commons.views.MyMaterialSwitch
+                    android:id="@+id/settings_voice_control"
+                    style="@style/SettingsSwitchStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/voice_control" />
+
+                <org.fossify.commons.views.MyTextView
+                    android:id="@+id/settings_voice_control_summary"
+                    style="@style/SettingsTextValueStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/settings_voice_control"
+                    android:text="@string/voice_control_explanation" />
+
+            </RelativeLayout>
+
+            <RelativeLayout
                 android:id="@+id/settings_use_same_snooze_holder"
                 style="@style/SettingsHolderSwitchStyle"
                 android:layout_width="match_parent"

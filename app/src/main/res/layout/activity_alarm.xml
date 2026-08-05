@@ -29,6 +29,33 @@
         app:layout_constraintTop_toBottomOf="@+id/reminder_title"
         tools:text="05:00 AM" />
 
+    <LinearLayout
+        android:id="@+id/voice_status_holder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/medium_margin"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/reminder_text">
+
+        <ImageView
+            android:id="@+id/voice_status_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:contentDescription="@string/voice_control"
+            android:src="@drawable/ic_microphone_vector" />
+
+        <org.fossify.commons.views.MyTextView
+            android:id="@+id/voice_status_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/small_margin"
+            tools:text="@string/voice_listening" />
+    </LinearLayout>
+
     <ImageView
         android:id="@+id/reminder_snooze"
         android:layout_width="@dimen/reminder_background_min_size"
@@ -86,7 +113,7 @@
         android:layout_width="@dimen/reminder_background_min_size"
         android:layout_height="@dimen/reminder_background_min_size"
         android:clickable="false"
-        android:contentDescription="@string/dismiss"
+        android:contentDescription="@string/alarm_stop_action"
         android:padding="@dimen/activity_margin"
         android:src="@drawable/ic_alarm_off_vector"
         app:layout_constraintBottom_toBottomOf="@+id/reminder_draggable"
@@ -99,7 +126,7 @@
         android:id="@+id/dismiss_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/dismiss"
+        android:text="@string/alarm_stop_action"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@+id/reminder_draggable"
@@ -110,7 +137,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:alpha="0"
-        android:text="@string/swipe_right_to_dismiss"
+        android:text="@string/swipe_right_to_stop"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

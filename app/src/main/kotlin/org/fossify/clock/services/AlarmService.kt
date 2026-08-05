@@ -19,6 +19,8 @@ import org.fossify.clock.helpers.ALARM_ID
 import org.fossify.clock.helpers.ALARM_NOTIFICATION_ID
 import org.fossify.clock.helpers.AlarmNotificationHelper
 import org.fossify.clock.models.Alarm
+import org.fossify.clock.voice.VoiceCapability
+import org.fossify.clock.voice.VoiceRecognitionManager
 import org.fossify.commons.helpers.SILENT
 import kotlin.time.Duration.Companion.seconds
 
@@ -80,6 +82,11 @@ class AlarmService : Service() {
             ALARM_NOTIFICATION_ID,
             notificationHelper.buildActiveAlarmNotification(newAlarm)
         )
+
+        if (config.voiceControlEnabled && VoiceCapability.detect(this).supported) {
+            // Model warm-up only. AlarmActivity is the sole microphone owner.
+            VoiceRecognitionManager.prepare(applicationContext)
+        }
 
         val currentAlarm = activeAlarm
         activeAlarm = newAlarm
@@ -202,6 +209,7 @@ class AlarmService : Service() {
         super.onDestroy()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopPlayerAndCleanup()
+        VoiceRecognitionManager.shutdown()
     }
 
     override fun onBind(intent: Intent?) = null

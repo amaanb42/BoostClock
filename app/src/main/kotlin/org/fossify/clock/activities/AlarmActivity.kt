@@ -1,7 +1,9 @@
 package org.fossify.clock.activities
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Handler
@@ -10,6 +12,11 @@ import android.provider.AlarmClock
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.animation.AnimationUtils
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import org.fossify.clock.R
 import org.fossify.clock.databinding.ActivityAlarmBinding
 import org.fossify.clock.extensions.alarmController
@@ -20,6 +27,11 @@ import org.fossify.clock.helpers.ALARM_ID
 import org.fossify.clock.helpers.getPassedSeconds
 import org.fossify.clock.models.Alarm
 import org.fossify.clock.models.AlarmEvent
+import org.fossify.clock.voice.RecognitionState
+import org.fossify.clock.voice.VoiceActionGate
+import org.fossify.clock.voice.VoiceAlarmAction
+import org.fossify.clock.voice.VoiceCapability
+import org.fossify.clock.voice.VoiceRecognitionManager
 import org.fossify.commons.extensions.applyColorFilter
 import org.fossify.commons.extensions.getProperBackgroundColor
 import org.fossify.commons.extensions.getProperPrimaryColor
@@ -37,6 +49,7 @@ import org.greenrobot.eventbus.ThreadMode
 import kotlin.math.max
 import kotlin.math.min
 
+@Suppress("TooManyFunctions")
 class AlarmActivity : SimpleActivity() {
     companion object {
         private const val REMINDER_DRAGGABLE_BACKGROUND_ALPHA = 0.2f
@@ -48,6 +61,9 @@ class AlarmActivity : SimpleActivity() {
     private var alarm: Alarm? = null
     private var didVibrate = false
     private var dragDownX = 0f
+    private val actionGate = VoiceActionGate()
+    private var voiceGeneration = 0L
+    private var activityResumed = false
 
     private val binding by viewBinding(ActivityAlarmBinding::inflate)
 
@@ -76,6 +92,7 @@ class AlarmActivity : SimpleActivity() {
         )
 
         setupAlarmButtons()
+        observeVoiceState()
         EventBus.getDefault().register(this)
     }
 
@@ -135,13 +152,13 @@ class AlarmActivity : SimpleActivity() {
                         if (!didVibrate) {
                             binding.reminderDraggable.performHapticFeedback()
                             didVibrate = true
-                            dismissAlarmAndFinish()
+                            runTouchAction { dismissAlarmAndFinish() }
                         }
                     } else if (binding.reminderDraggable.x <= minDragX + DRAG_ACTION_THRESHOLD_PX) {
                         if (!didVibrate) {
                             binding.reminderDraggable.performHapticFeedback()
                             didVibrate = true
-                            snoozeAlarm()
+                            runTouchAction { snoozeAlarm() }
                         }
                     }
                 }
@@ -157,14 +174,16 @@ class AlarmActivity : SimpleActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        actionGate.invalidate()
+        VoiceRecognitionManager.stopListening()
         when (intent.action) {
-            AlarmClock.ACTION_DISMISS_ALARM -> dismissAlarmAndFinish()
+            AlarmClock.ACTION_DISMISS_ALARM -> runTouchAction { dismissAlarmAndFinish() }
             AlarmClock.ACTION_SNOOZE_ALARM -> {
                 val durationMinutes = intent.getIntExtra(AlarmClock.EXTRA_ALARM_SNOOZE_DURATION, -1)
                 if (durationMinutes == -1) {
-                    snoozeAlarm()
+                    runTouchAction { snoozeAlarm() }
                 } else {
-                    snoozeAlarm(durationMinutes)
+                    runTouchAction { snoozeAlarm(durationMinutes) }
                 }
             }
 
@@ -175,9 +194,32 @@ class AlarmActivity : SimpleActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        activityResumed = false
+        actionGate.invalidate()
+        VoiceRecognitionManager.stopListening()
         swipeGuideFadeHandler.removeCallbacksAndMessages(null)
         EventBus.getDefault().unregister(this)
+        super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        activityResumed = true
+        voiceGeneration = actionGate.newGeneration()
+        if (isVoiceEnabled()) {
+            binding.voiceStatusHolder.visibility = android.view.View.VISIBLE
+            VoiceRecognitionManager.prepare(applicationContext)
+            startVoiceCaptureIfReady(VoiceRecognitionManager.state.value)
+        } else {
+            binding.voiceStatusHolder.visibility = android.view.View.GONE
+        }
+    }
+
+    override fun onPause() {
+        activityResumed = false
+        actionGate.invalidate()
+        VoiceRecognitionManager.stopListening()
+        super.onPause()
     }
 
     private fun snoozeAlarm(overrideSnoozeDuration: Int? = null) {
@@ -186,6 +228,7 @@ class AlarmActivity : SimpleActivity() {
         } else if (config.useSameSnooze) {
             dismissAlarmAndFinish(config.snoozeTime)
         } else {
+            VoiceRecognitionManager.stopListening()
             alarmController.silenceAlarm(alarm!!.id)
             showPickSecondsDialog(
                 curSeconds = config.snoozeTime * MINUTE_SECONDS,
@@ -202,6 +245,7 @@ class AlarmActivity : SimpleActivity() {
     }
 
     private fun dismissAlarmAndFinish(snoozeMinutes: Int = -1) {
+        VoiceRecognitionManager.stopListening()
         if (alarm != null) {
             if (snoozeMinutes != -1) {
                 alarmController.snoozeAlarm(alarm!!.id, snoozeMinutes)
@@ -212,6 +256,58 @@ class AlarmActivity : SimpleActivity() {
 
         finishActivity()
     }
+
+    private fun runTouchAction(action: () -> Unit) {
+        if (actionGate.tryClaimTouch()) action()
+    }
+
+    private fun observeVoiceState() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                VoiceRecognitionManager.state.collect { state ->
+                    updateVoiceState(state)
+                    startVoiceCaptureIfReady(state)
+                }
+            }
+        }
+    }
+
+    private fun startVoiceCaptureIfReady(state: RecognitionState) {
+        if (!activityResumed || !isVoiceEnabled() || state != RecognitionState.READY) return
+        val callbackGeneration = voiceGeneration
+        VoiceRecognitionManager.startListening { command ->
+            runOnUiThread {
+                if (!activityResumed || !actionGate.tryClaim(callbackGeneration)) return@runOnUiThread
+                VoiceRecognitionManager.stopListening()
+                when (val action = VoiceAlarmAction.forCommand(command, config.snoozeTime)) {
+                    VoiceAlarmAction.Dismiss -> dismissAlarmAndFinish()
+                    is VoiceAlarmAction.Snooze -> dismissAlarmAndFinish(action.durationMinutes)
+                }
+            }
+        }.onFailure {
+            VoiceRecognitionManager.stopListening(unavailable = true)
+        }
+    }
+
+    private fun updateVoiceState(state: RecognitionState) {
+        if (!isVoiceEnabled()) return
+        val stringId = when (state) {
+            RecognitionState.LOADING -> R.string.voice_loading
+            RecognitionState.READY,
+            RecognitionState.LISTENING -> R.string.voice_listening
+            RecognitionState.RECOGNIZED -> R.string.voice_recognized
+            RecognitionState.UNAVAILABLE,
+            RecognitionState.DISABLED -> R.string.voice_unavailable
+        }
+        binding.voiceStatusText.setText(stringId)
+        binding.voiceStatusIcon.applyColorFilter(getProperTextColor())
+    }
+
+    private fun isVoiceEnabled(): Boolean =
+        config.voiceControlEnabled &&
+            VoiceCapability.detect(this).supported &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
 
     private fun showOverLockscreen() {
         window.addFlags(

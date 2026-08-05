@@ -77,7 +77,7 @@ class AlarmNotificationHelper(private val context: Context) {
             )
             .addAction(
                 org.fossify.commons.R.drawable.ic_cross_vector,
-                context.getString(org.fossify.commons.R.string.dismiss),
+                context.getString(R.string.alarm_stop_action),
                 dismissIntent
             )
             .setDeleteIntent(dismissIntent)

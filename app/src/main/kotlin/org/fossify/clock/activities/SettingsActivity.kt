@@ -1,11 +1,15 @@
 package org.fossify.clock.activities
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import org.fossify.clock.R
 import org.fossify.clock.databinding.ActivitySettingsBinding
 import org.fossify.clock.dialogs.ExportDataDialog
@@ -25,6 +29,10 @@ import org.fossify.clock.helpers.TAB_STOPWATCH
 import org.fossify.clock.helpers.TAB_TIMER
 import org.fossify.clock.helpers.TimerHelper
 import org.fossify.clock.models.AlarmTimerBackup
+import org.fossify.clock.voice.VoiceCapability
+import org.fossify.clock.voice.VoicePermissionAction
+import org.fossify.clock.voice.VoicePermissionPolicy
+import org.fossify.clock.voice.VoiceUnsupportedReason
 import org.fossify.commons.dialogs.RadioGroupDialog
 import org.fossify.commons.extensions.beGone
 import org.fossify.commons.extensions.beGoneIf
@@ -51,6 +59,10 @@ import java.util.Locale
 import kotlin.system.exitProcess
 
 class SettingsActivity : SimpleActivity() {
+    companion object {
+        private const val DISABLED_ALPHA = 0.5f
+    }
+
     private val binding: ActivitySettingsBinding by viewBinding(ActivitySettingsBinding::inflate)
     private val exportActivityResultLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument(EXPORT_BACKUP_MIME_TYPE)) { uri ->
@@ -66,6 +78,14 @@ class SettingsActivity : SimpleActivity() {
             ensureBackgroundThread {
                 importData(uri)
             }
+        }
+
+    private val microphonePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            config.voicePermissionRequested = true
+            config.voiceControlEnabled = granted
+            binding.settingsVoiceControl.isChecked = granted
+            if (!granted) toast(R.string.voice_permission_denied)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,6 +112,7 @@ class SettingsActivity : SimpleActivity() {
         setupSnoozeTime()
         setupTimerMaxReminder()
         setupIncreaseVolumeGradually()
+        setupVoiceControl()
         setupCustomizeWidgetColors()
         setupExportData()
         setupImportData()
@@ -268,6 +289,67 @@ class SettingsActivity : SimpleActivity() {
             binding.settingsIncreaseVolumeGradually.toggle()
             config.increaseVolumeGradually = binding.settingsIncreaseVolumeGradually.isChecked
         }
+    }
+
+    private fun setupVoiceControl() {
+        val capability = VoiceCapability.detect(this)
+        val permissionGranted = hasMicrophonePermission()
+        if (VoicePermissionPolicy.mustDisable(config.voiceControlEnabled, permissionGranted)) {
+            config.voiceControlEnabled = false
+            toast(R.string.voice_permission_revoked)
+        }
+
+        binding.settingsVoiceControl.isChecked = config.voiceControlEnabled && permissionGranted
+        binding.settingsVoiceControl.isEnabled = capability.supported
+        binding.settingsVoiceControlHolder.isEnabled = capability.supported
+        binding.settingsVoiceControlHolder.alpha = if (capability.supported) 1f else DISABLED_ALPHA
+        binding.settingsVoiceControlSummary.setText(
+            when {
+                capability.supported -> R.string.voice_control_explanation
+                capability.reason == VoiceUnsupportedReason.MODEL_UNAVAILABLE ->
+                    R.string.voice_control_model_unavailable
+                else -> R.string.voice_control_unsupported
+            }
+        )
+        if (capability.supported) {
+            binding.settingsVoiceControlHolder.setOnClickListener {
+                if (config.voiceControlEnabled) {
+                    config.voiceControlEnabled = false
+                    binding.settingsVoiceControl.isChecked = false
+                } else {
+                    when (VoicePermissionPolicy.enableAction(
+                        permissionGranted = permissionGranted,
+                        permissionPreviouslyRequested = config.voicePermissionRequested,
+                        shouldShowRationale = shouldShowRequestPermissionRationale(
+                            Manifest.permission.RECORD_AUDIO
+                        ),
+                    )) {
+                        VoicePermissionAction.ENABLE -> {
+                            config.voiceControlEnabled = true
+                            binding.settingsVoiceControl.isChecked = true
+                        }
+                        VoicePermissionAction.REQUEST ->
+                            microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        VoicePermissionAction.OPEN_SETTINGS -> openApplicationPermissionSettings()
+                    }
+                }
+            }
+        } else {
+            binding.settingsVoiceControlHolder.setOnClickListener(null)
+        }
+    }
+
+    private fun hasMicrophonePermission() = ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.RECORD_AUDIO,
+    ) == PackageManager.PERMISSION_GRANTED
+
+    private fun openApplicationPermissionSettings() {
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+            }
+        )
     }
 
     private fun updateSnoozeText() {

@@ -21,6 +21,7 @@ kotlinx-coroutines = "1.10.2"
 numberpicker = "2.4.13"
 #Room
 room = "2.8.4"
+junit4 = "4.13.2"
 #Fossify
 commons = "6.1.0"
 #Gradle
@@ -57,6 +58,7 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 compose-detekt = { module = "io.nlopez.compose.rules:detekt", version.ref = "detektCompose" }
 #Fossify
 fossify-commons = { module = "org.fossify:commons", version.ref = "commons" }
+junit4 = { module = "junit:junit", version.ref = "junit4" }
 [bundles]
 room = [
     "androidx-room-ktx",

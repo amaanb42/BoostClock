@@ -96,6 +96,14 @@ class Config(context: Context) : BaseConfig(context) {
             putBoolean(INCREASE_VOLUME_GRADUALLY, increaseVolumeGradually)
         }
 
+    var voiceControlEnabled: Boolean
+        get() = prefs.getBoolean(VOICE_CONTROL_ENABLED, false)
+        set(enabled) = prefs.edit { putBoolean(VOICE_CONTROL_ENABLED, enabled) }
+
+    var voicePermissionRequested: Boolean
+        get() = prefs.getBoolean(VOICE_PERMISSION_REQUESTED, false)
+        set(requested) = prefs.edit { putBoolean(VOICE_PERMISSION_REQUESTED, requested) }
+
     var alarmLastConfig: Alarm?
         get() = prefs.getString(ALARM_LAST_CONFIG, null)?.let { lastAlarm ->
             try {

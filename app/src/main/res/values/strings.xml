@@ -54,6 +54,18 @@
     <string name="timer_tab">Timer tab</string>
     <string name="show_seconds">Show seconds</string>
     <string name="increase_volume_gradually">Increase volume gradually</string>
+    <string name="voice_control">Voice control</string>
+    <string name="alarm_stop_action">Stop</string>
+    <string name="swipe_right_to_stop">Swipe right to Stop, or left to Snooze.</string>
+    <string name="voice_control_explanation">Recognize “snooze” and “stop” locally while the alarm screen is visible. Audio is never saved or uploaded.</string>
+    <string name="voice_control_unsupported">Requires Android 12 or newer, a supported 64-bit processor, and a device that is not low-memory.</string>
+    <string name="voice_control_model_unavailable">Unavailable in this build because no offline voice model is bundled.</string>
+    <string name="voice_permission_denied">Microphone permission is required. Voice control remains off.</string>
+    <string name="voice_permission_revoked">Voice control was turned off because microphone permission was revoked.</string>
+    <string name="voice_loading">Loading voice control…</string>
+    <string name="voice_listening">Listening — say “snooze” or “stop”</string>
+    <string name="voice_recognized">Voice command recognized</string>
+    <string name="voice_unavailable">Voice control unavailable — use the swipe controls</string>
     <string name="settings_import_data">Import alarms and timers</string>
     <string name="settings_export_data">Export alarms and timers</string>
 
